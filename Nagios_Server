@@ -20,8 +20,6 @@ wget https://nagios-plugins.org/download/nagios-plugins-2.3.3.tar.gz
 
 tar -xvf nagios-4.4.6.tar.gz
 
-tar -xvf nagios-plugins-2.3.3.tar.gz
-
 cd nagios-4.4.6/
 
 ./configure --with-command-group=nagcmd
@@ -37,12 +35,17 @@ make install-commandmode
 make install-config
 
 vi /usr/local/nagios/etc/objects/contacts.cfg
+### add your email id for mail
 
 make install-webconf
 
 htpasswd -s -c /usr/local/nagios/etc/htpasswd.users nagiosadmin
 
-systemctl start httpd.service 
+systemctl start httpd.service
+
+systemctl enable httpd.service
+
+tar -xvf nagios-plugins-2.3.3.tar.gz
 
 cd /root/nagios/nagios-plugins-2.3.3/
 
@@ -54,6 +57,6 @@ make install
 
 /usr/local/nagios/bin/nagios -v /usr/local/nagios/etc/nagios.cfg
 
-systemctl enable nagios
-
 systemctl start nagios.service
+
+systemctl enable nagios.service
