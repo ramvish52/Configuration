@@ -1,0 +1,196 @@
+*****************************Add linux host for Monitoring ********************************
+
+# yum install -y gcc glibc glibc-common gd gd-devel make net-snmp openssl-devel
+
+# useradd nagios
+# passwd nagios
+
+# mkdir nagios
+# cd /root/nagios
+
+wget https://nagios-plugins.org/download/nagios-plugins-2.3.3.tar.gz
+tar -xvf nagios-plugins-2.3.3.tar.gz
+cd nagios-plugins-2.3.3/
+ ./configure
+make
+make install
+
+chown nagios.nagios /usr/local/nagios
+chown -R nagios.nagios /usr/local/nagios/libexec
+
+yum install xinetd
+
+cd /root/nagios/
+wget https://github.com/NagiosEnterprises/nrpe/releases/download/nrpe-4.0.3/nrpe-4.0.3.tar.gz
+tar xvf nrpe-4.0.3.tar.gz
+
+cd nrpe-4.0.3
+./configure
+
+make all
+make install
+make install-config
+
+vi /etc/services
+#add this line
+nrpe	5666/tcp
+
+make install-init
+
+
+vi /usr/local/nagios/etc/nrpe.cfg
+### add nagios server ip address in below mention line
+allowed_hosts=127.0.0.1,<server-ip-addres>
+
+systemctl start nrpe.service
+systemctl enable nrpe.service
+
+/usr/local/nagios/libexec/check_nrpe -H 172.31.6.31
+/usr/local/nagios/libexec/check_nrpe -H 172.31.6.31 -c check_load
+
+*****************************Add in Nagios Server ********************************
+
+mkdir nagios
+cd /root/nagios
+yum install -y gcc glibc glibc-common gd gd-devel make net-snmp openssl-devel
+wget https://github.com/NagiosEnterprises/nrpe/releases/download/nrpe-4.0.3/nrpe-4.0.3.tar.gz
+tar xvf nrpe-4.0.3.tar.gz
+
+cd nrpe-4.0.3/
+./configure
+
+make all
+make install
+make install-config
+
+vi /etc/services
+#add this line
+nrpe	5666/tcp
+
+make install-init
+systemctl enable nrpe.service
+
+systemctl start nrpe.service
+
+/usr/local/nagios/libexec/check_nrpe -H <remote-host-ip>
+/usr/local/nagios/libexec/check_nrpe -H <remote-host-ip> -c check_load
+
+cd /usr/local/nagios/etc
+touch hosts.cfg
+touch services.cfg
+
+vi /usr/local/nagios/etc/nagios.cfg
+#### add below line at the end of file
+cfg_file=/usr/local/nagios/etc/hosts.cfg
+cfg_file=/usr/local/nagios/etc/services.cfg
+
+vim /usr/local/nagios/etc/hosts.cfg
+
+..............................................................................................................................................................................................................................................
+###Host Template###########
+define host{
+name                            	linux-box    	; The name of this host template
+use                             		generic-host    	; This template inherits other values from the generic-host template
+check_period                    	24x7            	; By default, Linux hosts are checked round the clock
+check_interval                  	5               		; Actively check the host every 5 minutes
+retry_interval                  	1               		; Schedule host check retries at 1 minute intervals
+max_check_attempts              	10              	; Check each Linux host 10 times (max)
+check_command                   	check-host-alive 	; Default command to check Linux hosts
+notification_period             	24x7           	; Linux admins hate to be woken up, so we only notify during the day
+; Note that the notification_period variable is being overridden from
+; the value that is inherited from the generic-host template!
+notification_interval           	30             		; Resend notifications every 2 hours
+notification_options            	d,r           		; Only send notifications for specific host states
+contact_groups                  	admins          	; Notifications get sent to the admins by default
+register                        	0               		; DONT REGISTER THIS DEFINITION - ITS NOT A REAL HOST, JUST A TEMPLATE!
+}
+
+
+##Ng-client1
+define host{
+use                    	 linux-box
+host_name              	 ip-172-31-6-31.ap-south-1.compute.internal
+alias                 	 ip-172-31-6-31.ap-south-1.compute.internal
+address                	 172.31.6.31
+}
+
+##Ng-clien2
+define host{
+use                     	linux-box
+host_name             	ip-172-31-5-202.ap-south-1.compute.internal
+alias                  	ip-172-31-5-202.ap-south-1.compute.internal
+address                 	172.31.5.202
+}
+
+..............................................................................................................................................................................................................................................
+
+vim /usr/local/nagios/etc/services.cfg
+
+.............................................................................................................................................................................................................................................
+
+# Local service definition template - This is NOT a real service, just a template!
+define service{
+name                            	local-srv           ; The name of this service template
+use                             		generic-service         ; Inherit default values from the generic-service definition
+max_check_attempts              	4                       ; Re-check the service up to 4 times in order to determine its final (hard) state
+check_interval                  	10                      ; Check the service every 5 minutes under normal conditions
+retry_interval                  	1                       ; Re-check the service every minute until a hard state can be determined
+register                        	0                       ; DONT REGISTER THIS DEFINITION - ITS NOT A REAL SERVICE, JUST A TEMPLATE!
+notification_interval           	60
+notification_period             	24x7
+notification_options            	c,u,r,w
+contact_groups                  	admins
+}
+
+
+##Default
+
+define service{
+use                             		local-srv
+host_name                      	ip-172-31-6-31.ap-south-1.compute.internal
+service_description             	Root / Partition
+check_command                   	check_nrpe!check_disk
+}
+
+define service{
+use                             		local-srv
+host_name                       	ip-172-31-6-31.ap-south-1.compute.internal
+service_description             	/mnt Partition
+check_command                   	check_nrpe!check_mnt_disk
+}
+
+define service{
+use                             		local-srv
+host_name                       	ip-172-31-6-31.ap-south-1.compute.internal
+service_description             	Current Users
+check_command                   	check_nrpe!check_users
+}
+
+define service{
+use                             		local-srv
+host_name                       	ip-172-31-6-31.ap-south-1.compute.internal
+service_description             	Total Processes
+check_command                   	check_nrpe!check_total_procs
+}
+
+define service{
+use                             		local-srv
+host_name                       	ip-172-31-6-31.ap-south-1.compute.internal
+service_description             	Current Load
+check_command                   	check_nrpe!check_load
+}
+
+.............................................................................................................................................................................................................................................
+
+vim /usr/local/nagios/etc/objects/commands.cfg
+
+# .check_nrpe. command definition
+define command{
+command_name check_nrpe
+command_line /usr/local/nagios/libexec/check_nrpe -H $HOSTADDRESS$ -t 30 -c $ARG1$
+}
+
+/usr/local/nagios/bin/nagios -v /usr/local/nagios/etc/nagios.cfg	     ## check error by this commond
+
+ service nagios restart		## restart service
+ service nrpe restart
